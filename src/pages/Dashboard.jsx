@@ -44,12 +44,12 @@ export default function Dashboard() {
       {loading ? (
         <p className="text-gray-500">読み込み中...</p>
       ) : (
-        <div className="grid grid-cols-2 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
           {cards.map((card) => (
             <Link
               key={card.label}
               to={card.link}
-              className={`border rounded-lg p-5 ${card.color} hover:opacity-80 transition-opacity`}
+              className={`border rounded-lg p-5 ${card.color} hover:opacity-80 transition-opacity min-h-[44px]`}
             >
               <p className="text-sm text-gray-500 mb-1">{card.label}</p>
               <p className="text-3xl font-bold text-gray-800">
@@ -63,7 +63,7 @@ export default function Dashboard() {
 
       <div className="bg-white border border-gray-200 rounded-lg p-5">
         <h3 className="font-semibold text-gray-700 mb-3">クイックリンク</h3>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {[
             { to: '/inventory-register', label: '在庫入庫登録' },
             { to: '/cost-calculation', label: '原価計算' },
@@ -72,7 +72,7 @@ export default function Dashboard() {
             <Link
               key={link.to}
               to={link.to}
-              className="text-center py-2 px-3 bg-gray-100 hover:bg-gray-200 rounded text-sm text-gray-700 transition-colors"
+              className="text-center py-3 px-3 bg-gray-100 hover:bg-gray-200 rounded text-sm text-gray-700 transition-colors min-h-[44px] flex items-center justify-center"
             >
               {link.label}
             </Link>

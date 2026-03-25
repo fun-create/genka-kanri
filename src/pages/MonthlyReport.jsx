@@ -9,9 +9,7 @@ export default function MonthlyReport() {
   const [inventoryHistory, setInventoryHistory] = useState([])
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    fetchReport()
-  }, [year, month])
+  useEffect(() => { fetchReport() }, [year, month])
 
   async function fetchReport() {
     setLoading(true)
@@ -20,18 +18,8 @@ export default function MonthlyReport() {
     const to = `${toDate.getFullYear()}-${String(toDate.getMonth() + 1).padStart(2, '0')}-01T00:00:00+09:00`
 
     const [detailRes, histRes] = await Promise.all([
-      supabase
-        .from('T_原価計算明細')
-        .select('*')
-        .gte('作成日時', from)
-        .lt('作成日時', to)
-        .order('作成日時', { ascending: false }),
-      supabase
-        .from('T_在庫履歴')
-        .select('*, T_原材料マスタ(資材名)')
-        .gte('日時', from)
-        .lt('日時', to)
-        .order('日時', { ascending: false }),
+      supabase.from('T_原価計算明細').select('*').gte('作成日時', from).lt('作成日時', to).order('作成日時', { ascending: false }),
+      supabase.from('T_在庫履歴').select('*, T_原材料マスタ(資材名)').gte('日時', from).lt('日時', to).order('日時', { ascending: false }),
     ])
 
     setDetails(detailRes.data || [])
@@ -43,7 +31,6 @@ export default function MonthlyReport() {
   const inCount = inventoryHistory.filter((h) => h['区分'] === '入庫').length
   const outCount = inventoryHistory.filter((h) => h['区分'] === '出庫').length
 
-  // 原材料コード別の集計
   const materialSummary = details.reduce((acc, d) => {
     const code = d['原材料コード'] || '不明'
     if (!acc[code]) acc[code] = { code, totalCost: 0, count: 0 }
@@ -59,13 +46,13 @@ export default function MonthlyReport() {
     <div>
       <h2 className="text-xl font-bold text-gray-800 mb-4">月次レポート</h2>
 
-      <div className="flex gap-3 items-center mb-6">
+      <div className="flex gap-2 items-center mb-6 flex-wrap">
         <select value={year} onChange={(e) => setYear(Number(e.target.value))}
-          className="border border-gray-300 rounded px-3 py-1.5 text-sm">
+          className="border border-gray-300 rounded px-3 py-2.5 text-base md:text-sm">
           {years.map((y) => <option key={y} value={y}>{y}年</option>)}
         </select>
         <select value={month} onChange={(e) => setMonth(Number(e.target.value))}
-          className="border border-gray-300 rounded px-3 py-1.5 text-sm">
+          className="border border-gray-300 rounded px-3 py-2.5 text-base md:text-sm">
           {months.map((m) => <option key={m} value={m}>{m}月</option>)}
         </select>
         <span className="text-sm text-gray-500">{year}年{month}月</span>
@@ -76,7 +63,7 @@ export default function MonthlyReport() {
       ) : (
         <>
           {/* サマリーカード */}
-          <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-xs text-blue-600 mb-1">原価計算件数</p>
               <p className="text-2xl font-bold text-blue-800">{details.length}<span className="text-sm font-normal ml-1">件</span></p>
@@ -87,39 +74,34 @@ export default function MonthlyReport() {
             </div>
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
               <p className="text-xs text-gray-600 mb-1">在庫移動（入庫/出庫）</p>
-              <p className="text-2xl font-bold text-gray-800">{inCount}<span className="text-sm font-normal text-gray-500 ml-1">入庫</span> / {outCount}<span className="text-sm font-normal text-gray-500 ml-1">出庫</span></p>
+              <p className="text-2xl font-bold text-gray-800">
+                {inCount}<span className="text-sm font-normal text-gray-500 ml-1">入庫</span>
+                {' / '}
+                {outCount}<span className="text-sm font-normal text-gray-500 ml-1">出庫</span>
+              </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* 原材料別原価集計 */}
             <div className="bg-white border border-gray-200 rounded-lg p-5">
               <h3 className="font-semibold text-gray-700 mb-3">原材料別原価集計</h3>
               {Object.keys(materialSummary).length === 0 ? (
                 <p className="text-gray-400 text-sm">データがありません</p>
               ) : (
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="bg-gray-100 text-gray-600">
-                      {['原材料コード', '件数', '合計原価'].map((h) => (
-                        <th key={h} className="border border-gray-200 px-3 py-2 text-left">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.values(materialSummary)
-                      .sort((a, b) => b.totalCost - a.totalCost)
-                      .map((s) => (
-                        <tr key={s.code} className="bg-white hover:bg-gray-50">
-                          <td className="border border-gray-200 px-3 py-2">{s.code}</td>
-                          <td className="border border-gray-200 px-3 py-2 text-right">{s.count}</td>
-                          <td className="border border-gray-200 px-3 py-2 text-right font-medium">
-                            ¥{s.totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
+                <div className="space-y-2">
+                  {Object.values(materialSummary)
+                    .sort((a, b) => b.totalCost - a.totalCost)
+                    .map((s) => (
+                      <div key={s.code} className="flex items-center justify-between bg-gray-50 rounded px-3 py-2">
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">{s.code}</p>
+                          <p className="text-xs text-gray-400">{s.count}件</p>
+                        </div>
+                        <p className="font-bold text-gray-800">¥{s.totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                      </div>
+                    ))}
+                </div>
               )}
             </div>
 
@@ -129,34 +111,25 @@ export default function MonthlyReport() {
               {inventoryHistory.length === 0 ? (
                 <p className="text-gray-400 text-sm">データがありません</p>
               ) : (
-                <div className="overflow-y-auto max-h-72">
-                  <table className="w-full text-sm border-collapse">
-                    <thead>
-                      <tr className="bg-gray-100 text-gray-600">
-                        {['日時', '資材名', '区分', '数量'].map((h) => (
-                          <th key={h} className="border border-gray-200 px-2 py-1.5 text-left text-xs">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {inventoryHistory.map((h) => (
-                        <tr key={h.id} className="bg-white hover:bg-gray-50">
-                          <td className="border border-gray-200 px-2 py-1.5 text-xs whitespace-nowrap">
-                            {new Date(h['日時']).toLocaleDateString('ja-JP', { month: '2-digit', day: '2-digit' })}
-                          </td>
-                          <td className="border border-gray-200 px-2 py-1.5 text-xs">{h['T_原材料マスタ']?.['資材名'] || h['原材料コード']}</td>
-                          <td className="border border-gray-200 px-2 py-1.5">
-                            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                              h['区分'] === '入庫' ? 'bg-blue-100 text-blue-700' :
-                              h['区分'] === '出庫' ? 'bg-orange-100 text-orange-700' :
-                              'bg-gray-100 text-gray-700'
-                            }`}>{h['区分']}</span>
-                          </td>
-                          <td className="border border-gray-200 px-2 py-1.5 text-xs text-right">{h['数量']}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="space-y-2 max-h-72 overflow-y-auto">
+                  {inventoryHistory.map((h) => (
+                    <div key={h.id} className="flex items-center justify-between bg-gray-50 rounded px-3 py-2">
+                      <div>
+                        <p className="text-sm text-gray-800">{h['T_原材料マスタ']?.['資材名'] || h['原材料コード']}</p>
+                        <p className="text-xs text-gray-400">
+                          {new Date(h['日時']).toLocaleDateString('ja-JP', { month: '2-digit', day: '2-digit' })}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                          h['区分'] === '入庫' ? 'bg-blue-100 text-blue-700' :
+                          h['区分'] === '出庫' ? 'bg-orange-100 text-orange-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>{h['区分']}</span>
+                        <span className="font-bold text-sm">{h['数量']}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -166,7 +139,8 @@ export default function MonthlyReport() {
           {details.length > 0 && (
             <div className="bg-white border border-gray-200 rounded-lg p-5 mt-6">
               <h3 className="font-semibold text-gray-700 mb-3">原価計算明細</h3>
-              <div className="overflow-x-auto">
+              {/* デスクトップ テーブル */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="bg-gray-100 text-gray-600">
@@ -178,7 +152,7 @@ export default function MonthlyReport() {
                   <tbody>
                     {details.map((d) => (
                       <tr key={d.id} className="bg-white hover:bg-gray-50">
-                        <td className="border border-gray-200 px-3 py-2">{d['受注ID']}</td>
+                        <td className="border border-gray-200 px-3 py-2 text-xs">{d['受注ID']}</td>
                         <td className="border border-gray-200 px-3 py-2">{d['原材料コード']}</td>
                         <td className="border border-gray-200 px-3 py-2 text-right">¥{Number(d['単価_snapshot']).toLocaleString()}</td>
                         <td className="border border-gray-200 px-3 py-2 text-right">{d['数量']}</td>
@@ -190,6 +164,23 @@ export default function MonthlyReport() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+              {/* モバイル カード */}
+              <div className="md:hidden space-y-2">
+                {details.map((d) => (
+                  <div key={d.id} className="bg-gray-50 rounded px-3 py-2.5">
+                    <div className="flex justify-between items-start mb-1">
+                      <p className="text-xs text-gray-500 truncate flex-1">{d['受注ID']}</p>
+                      <p className="font-bold text-gray-800 ml-2">¥{Number(d['原価']).toLocaleString()}</p>
+                    </div>
+                    <div className="flex gap-4 text-xs text-gray-500">
+                      <span>単価 ¥{Number(d['単価_snapshot']).toLocaleString()}</span>
+                      <span>×</span>
+                      <span>{d['数量']}</span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-0.5">{new Date(d['作成日時']).toLocaleString('ja-JP')}</p>
+                  </div>
+                ))}
               </div>
             </div>
           )}

@@ -24,30 +24,17 @@ export default function ProductDetail() {
 
   async function fetchData() {
     setLoading(true)
-
     const { data: prod, error: prodErr } = await supabase
-      .from('T_商品マスタ')
-      .select('*')
-      .eq('商品コード', decodeURIComponent(code))
-      .single()
+      .from('T_商品マスタ').select('*').eq('商品コード', decodeURIComponent(code)).single()
 
-    if (prodErr || !prod) {
-      setError('商品が見つかりません')
-      setLoading(false)
-      return
-    }
-
+    if (prodErr || !prod) { setError('商品が見つかりません'); setLoading(false); return }
     setProduct(prod)
 
     if (prod['原価コード']) {
       const { data: bom } = await supabase
-        .from('T_原価計算明細')
-        .select('*')
-        .eq('受注ID', prod['原価コード'])
-        .order('明細区分')
+        .from('T_原価計算明細').select('*').eq('受注ID', prod['原価コード']).order('明細区分')
       setBomRows(bom || [])
     }
-
     setLoading(false)
   }
 
@@ -62,13 +49,9 @@ export default function ProductDetail() {
   async function refreshBomAndTotal() {
     if (!product) return
     const { data: bom } = await supabase
-      .from('T_原価計算明細')
-      .select('*')
-      .eq('受注ID', product['原価コード'])
-      .order('明細区分')
+      .from('T_原価計算明細').select('*').eq('受注ID', product['原価コード']).order('明細区分')
     const rows = bom || []
     setBomRows(rows)
-
     const newTotal = rows.reduce((sum, r) => sum + Number(r['原価']), 0)
     const 本体価格 = Number(product['本体価格']) || 0
     const 原価率 = 本体価格 > 0 ? newTotal / 本体価格 : null
@@ -93,23 +76,26 @@ export default function ProductDetail() {
     for (const row of bomRows) {
       const kubun = row['明細区分']
       let newPrice = null
-      if (kubun === '原材料' || kubun === 'メディア' || kubun === '梱包') {
-        newPrice = matMap[row['コード']] ?? null
-      } else if (kubun === '溶剤') {
-        newPrice = solMap[row['名称']] ?? null
-      } else if (kubun === '工数') {
-        newPrice = procMap[row['コード']] ?? null
-      }
+      if (kubun === '原材料' || kubun === 'メディア' || kubun === '梱包') newPrice = matMap[row['コード']] ?? null
+      else if (kubun === '溶剤') newPrice = solMap[row['名称']] ?? null
+      else if (kubun === '工数') newPrice = procMap[row['コード']] ?? null
+
       if (newPrice !== null) {
         const new原価 = newPrice * Number(row['数量'])
-        await supabase.from('T_原価計算明細')
-          .update({ 単価_snapshot: newPrice, 原価: new原価 })
-          .eq('id', row.id)
+        await supabase.from('T_原価計算明細').update({ 単価_snapshot: newPrice, 原価: new原価 }).eq('id', row.id)
       }
     }
 
     await refreshBomAndTotal()
     setRecalculating(false)
+  }
+
+  async function ensureGenkaCode() {
+    if (product['原価コード']) return product['原価コード']
+    const newCode = `${product['商品コード']}-${Date.now()}`
+    await supabase.from('T_商品マスタ').update({ 原価コード: newCode }).eq('商品コード', product['商品コード'])
+    setProduct((p) => ({ ...p, 原価コード: newCode }))
+    return newCode
   }
 
   if (loading) return <p className="text-gray-500">読み込み中...</p>
@@ -120,7 +106,6 @@ export default function ProductDetail() {
     </div>
   )
 
-  // 明細区分ごとの集計
   const kubunSummary = {}
   for (const row of bomRows) {
     const k = row['明細区分'] || '不明'
@@ -135,15 +120,6 @@ export default function ProductDetail() {
     Object.keys(kubunSummary).filter((k) => !KUBUN_ORDER.includes(k))
   )
 
-  // 原価コードが未設定の場合は自動生成して保存するヘルパー
-  async function ensureGenkaCode() {
-    if (product['原価コード']) return product['原価コード']
-    const newCode = `${product['商品コード']}-${Date.now()}`
-    await supabase.from('T_商品マスタ').update({ 原価コード: newCode }).eq('商品コード', product['商品コード'])
-    setProduct((p) => ({ ...p, 原価コード: newCode }))
-    return newCode
-  }
-
   return (
     <div>
       <div className="mb-4">
@@ -152,34 +128,30 @@ export default function ProductDetail() {
 
       {/* 商品情報カード */}
       <div className="bg-white border border-gray-200 rounded-lg p-5 mb-6">
-        <div className="flex items-start justify-between">
-          <div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
             <p className="text-xs text-gray-400 mb-0.5">{product['商品コード']}</p>
             <h2 className="text-xl font-bold text-gray-800">{product['商品名']}</h2>
-            <div className="flex gap-2 mt-2">
+            <div className="flex flex-wrap gap-2 mt-2">
               {product['ポジション'] && (
-                <span className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded-full">
-                  {product['ポジション']}
-                </span>
+                <span className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded-full">{product['ポジション']}</span>
               )}
               {product['原価コード'] && (
-                <span className="bg-blue-50 text-blue-600 text-xs px-2 py-0.5 rounded-full">
-                  原価コード: {product['原価コード']}
-                </span>
+                <span className="bg-blue-50 text-blue-600 text-xs px-2 py-0.5 rounded-full">原価コード: {product['原価コード']}</span>
               )}
             </div>
           </div>
-          <div className="text-right">
+          <div className="text-right shrink-0">
             <p className="text-xs text-gray-500 mb-0.5">最新総原価</p>
             <p className="text-2xl font-bold text-blue-600">
               ¥{Number(product['最新総原価']).toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </p>
             {product['本体価格'] > 0 && (
               <p className="text-sm text-gray-500 mt-0.5">
-                本体価格 ¥{Number(product['本体価格']).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                本体 ¥{Number(product['本体価格']).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 {product['原価率'] > 0 && (
-                  <span className={`ml-2 font-medium ${Number(product['原価率']) > 0.5 ? 'text-red-600' : 'text-gray-600'}`}>
-                    （原価率 {(Number(product['原価率']) * 100).toFixed(1)}%）
+                  <span className={`ml-1 font-medium ${Number(product['原価率']) > 0.5 ? 'text-red-600' : 'text-gray-600'}`}>
+                    ({(Number(product['原価率']) * 100).toFixed(1)}%)
                   </span>
                 )}
               </p>
@@ -189,25 +161,18 @@ export default function ProductDetail() {
       </div>
 
       {/* BOM操作バー */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h3 className="text-base font-semibold text-gray-700">BOM明細</h3>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {bomRows.length > 0 && (
-            <button
-              onClick={handleRecalculate}
-              disabled={recalculating}
-              className="bg-amber-500 text-white px-3 py-1.5 rounded text-sm hover:bg-amber-600 disabled:opacity-50"
-            >
+            <button onClick={handleRecalculate} disabled={recalculating}
+              className="bg-amber-500 text-white px-3 py-2 rounded text-sm hover:bg-amber-600 disabled:opacity-50 min-h-[44px]">
               {recalculating ? '再計算中...' : '最新単価で再計算'}
             </button>
           )}
           <button
-            onClick={async () => {
-              const code = await ensureGenkaCode()
-              if (code) setShowBomForm(true)
-            }}
-            className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700"
-          >
+            onClick={async () => { const c = await ensureGenkaCode(); if (c) setShowBomForm(true) }}
+            className="bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 min-h-[44px]">
             ＋ 明細追加
           </button>
         </div>
@@ -220,89 +185,96 @@ export default function ProductDetail() {
         </p>
       ) : (
         <>
-          {/* 明細区分別サマリー */}
-          <div className="grid grid-cols-2 gap-3 mb-6 sm:grid-cols-4">
+          {/* 区分サマリー */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
             {sortedKubun.map((k) => {
               const s = kubunSummary[k]
               const pct = totalCost > 0 ? (s.totalCost / totalCost * 100) : 0
               return (
                 <div key={k} className="bg-white border border-gray-200 rounded-lg p-3">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${KUBUN_COLOR[k] || 'bg-gray-100 text-gray-700'}`}>
-                      {k}
-                    </span>
-                  </div>
-                  <p className="text-lg font-bold text-gray-800">
-                    ¥{s.totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                  </p>
-                  <p className="text-xs text-gray-400">{pct.toFixed(1)}%　{s.count}件</p>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${KUBUN_COLOR[k] || 'bg-gray-100 text-gray-700'}`}>{k}</span>
+                  <p className="text-lg font-bold text-gray-800 mt-1">¥{s.totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                  <p className="text-xs text-gray-400">{pct.toFixed(1)}% · {s.count}件</p>
                 </div>
               )
             })}
-            {/* 合計 */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-xs text-blue-600 mb-1 font-medium">合計原価（BOM）</p>
-              <p className="text-lg font-bold text-blue-700">
-                ¥{totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-              </p>
+              <p className="text-xs text-blue-600 font-medium">合計原価</p>
+              <p className="text-lg font-bold text-blue-700 mt-1">¥{totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
               <p className="text-xs text-blue-400">{bomRows.length}明細</p>
             </div>
           </div>
 
-          {/* 明細区分ごとのテーブル */}
+          {/* 明細区分ごと */}
           {sortedKubun.map((k) => (
             <div key={k} className="bg-white border border-gray-200 rounded-lg p-4 mb-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${KUBUN_COLOR[k] || 'bg-gray-100 text-gray-700'}`}>
-                    {k}
-                  </span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${KUBUN_COLOR[k] || 'bg-gray-100 text-gray-700'}`}>{k}</span>
                   <span className="text-sm font-semibold text-gray-700">{kubunSummary[k].count} 件</span>
                 </div>
                 <span className="text-sm font-bold text-gray-800">
                   小計 ¥{kubunSummary[k].totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </span>
               </div>
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr className="bg-gray-50 text-gray-500">
-                    {['コード', '名称', '単価', '数量', '原価', '操作'].map((h) => (
-                      <th key={h} className="border border-gray-100 px-3 py-1.5 text-left text-xs">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {kubunSummary[k].rows.map((row) => (
-                    <tr key={row.id} className="hover:bg-gray-50">
-                      <td className="border border-gray-100 px-3 py-1.5 text-xs text-gray-500">{row['コード']}</td>
-                      <td className="border border-gray-100 px-3 py-1.5">{row['名称']}</td>
-                      <td className="border border-gray-100 px-3 py-1.5 text-right">
-                        ¥{Number(row['単価_snapshot']).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                      </td>
-                      <td className="border border-gray-100 px-3 py-1.5 text-right">
-                        {Number(row['数量']).toLocaleString(undefined, { maximumFractionDigits: 4 })}
-                      </td>
-                      <td className="border border-gray-100 px-3 py-1.5 text-right font-medium">
-                        ¥{Number(row['原価']).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                      </td>
-                      <td className="border border-gray-100 px-3 py-1.5 whitespace-nowrap">
-                        <button
-                          onClick={() => { setEditingBomRow(row); setShowBomForm(true) }}
-                          className="text-blue-600 hover:underline text-xs mr-2"
-                        >
-                          編集
-                        </button>
-                        <button
-                          onClick={() => handleDeleteBom(row.id)}
-                          className="text-red-500 hover:underline text-xs"
-                        >
-                          削除
-                        </button>
-                      </td>
+
+              {/* デスクトップ テーブル */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50 text-gray-500">
+                      {['コード', '名称', '単価', '数量', '原価', '操作'].map((h) => (
+                        <th key={h} className="border border-gray-100 px-3 py-1.5 text-left text-xs">{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {kubunSummary[k].rows.map((row) => (
+                      <tr key={row.id} className="hover:bg-gray-50">
+                        <td className="border border-gray-100 px-3 py-1.5 text-xs text-gray-500">{row['コード']}</td>
+                        <td className="border border-gray-100 px-3 py-1.5">{row['名称']}</td>
+                        <td className="border border-gray-100 px-3 py-1.5 text-right">
+                          ¥{Number(row['単価_snapshot']).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="border border-gray-100 px-3 py-1.5 text-right">
+                          {Number(row['数量']).toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                        </td>
+                        <td className="border border-gray-100 px-3 py-1.5 text-right font-medium">
+                          ¥{Number(row['原価']).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="border border-gray-100 px-3 py-1.5 whitespace-nowrap">
+                          <button onClick={() => { setEditingBomRow(row); setShowBomForm(true) }} className="text-blue-600 hover:underline text-xs mr-2">編集</button>
+                          <button onClick={() => handleDeleteBom(row.id)} className="text-red-500 hover:underline text-xs">削除</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* モバイル カード */}
+              <div className="md:hidden space-y-2">
+                {kubunSummary[k].rows.map((row) => (
+                  <div key={row.id} className="bg-gray-50 rounded-lg p-3">
+                    <div className="flex justify-between items-start mb-1">
+                      <div>
+                        <p className="font-medium text-sm text-gray-800">{row['名称']}</p>
+                        {row['コード'] && <p className="text-xs text-gray-400">{row['コード']}</p>}
+                      </div>
+                      <p className="font-bold text-gray-800 ml-2">¥{Number(row['原価']).toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      ¥{Number(row['単価_snapshot']).toLocaleString(undefined, { maximumFractionDigits: 2 })} × {Number(row['数量']).toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                    </p>
+                    <div className="flex gap-2 mt-2">
+                      <button onClick={() => { setEditingBomRow(row); setShowBomForm(true) }}
+                        className="flex-1 py-2 text-xs text-blue-600 border border-blue-200 rounded hover:bg-blue-50 min-h-[44px]">編集</button>
+                      <button onClick={() => handleDeleteBom(row.id)}
+                        className="flex-1 py-2 text-xs text-red-500 border border-red-200 rounded hover:bg-red-50 min-h-[44px]">削除</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </>
@@ -313,11 +285,7 @@ export default function ProductDetail() {
           原価コード={product['原価コード']}
           editRow={editingBomRow}
           onClose={() => { setShowBomForm(false); setEditingBomRow(null) }}
-          onSave={async () => {
-            setShowBomForm(false)
-            setEditingBomRow(null)
-            await refreshBomAndTotal()
-          }}
+          onSave={async () => { setShowBomForm(false); setEditingBomRow(null); await refreshBomAndTotal() }}
         />
       )}
     </div>
