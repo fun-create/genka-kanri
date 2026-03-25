@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import BomViewModal from '../components/BomViewModal'
 
 export default function CostCalculation() {
   const [tab, setTab] = useState('calc') // 'calc' | 'master'
@@ -26,6 +27,9 @@ export default function CostCalculation() {
   const [productForm, setProductForm] = useState({ 商品コード: '', 商品名: '', 最新総原価: '' })
   const [editProductKey, setEditProductKey] = useState(null)
   const [showProductForm, setShowProductForm] = useState(false)
+
+  // BOM確認モーダル
+  const [bomTarget, setBomTarget] = useState(null)
 
   useEffect(() => {
     async function fetchAll() {
@@ -245,15 +249,22 @@ export default function CostCalculation() {
             <tbody>
               {products.map((p) => (
                 <tr key={p['商品コード']} className="bg-white hover:bg-gray-50">
-                  <td className="border border-gray-200 px-3 py-2">{p['商品コード']}</td>
-                  <td className="border border-gray-200 px-3 py-2">{p['商品名']}</td>
-                  <td className="border border-gray-200 px-3 py-2 text-right">¥{Number(p['最新総原価']).toLocaleString()}</td>
-                  <td className="border border-gray-200 px-3 py-2">
+                  <td className="border border-gray-200 px-3 py-2 text-xs text-gray-500">{p['商品コード']}</td>
+                  <td className="border border-gray-200 px-3 py-2 font-medium">{p['商品名']}</td>
+                  <td className="border border-gray-200 px-3 py-2 text-right">
+                    ¥{Number(p['最新総原価']).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </td>
+                  <td className="border border-gray-200 px-3 py-2 whitespace-nowrap">
+                    <button
+                      onClick={() => setBomTarget(p)}
+                      className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-0.5 rounded mr-2">
+                      BOM確認
+                    </button>
                     <button onClick={() => {
                       setProductForm({ 商品コード: p['商品コード'], 商品名: p['商品名'], 最新総原価: String(p['最新総原価']) })
                       setEditProductKey(p['商品コード'])
                       setShowProductForm(true)
-                    }} className="text-blue-600 hover:underline mr-3 text-xs">編集</button>
+                    }} className="text-blue-600 hover:underline mr-2 text-xs">編集</button>
                     <button onClick={() => handleProductDelete(p['商品コード'])} className="text-red-500 hover:underline text-xs">削除</button>
                   </td>
                 </tr>
@@ -264,6 +275,19 @@ export default function CostCalculation() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {bomTarget && (
+        <BomViewModal
+          product={bomTarget}
+          masters={{ materials, solvents, processes }}
+          onClose={() => setBomTarget(null)}
+          onTotalUpdated={(code, newTotal) => {
+            setProducts((prev) =>
+              prev.map((p) => p['商品コード'] === code ? { ...p, 最新総原価: newTotal } : p)
+            )
+          }}
+        />
       )}
 
       {showProductForm && (
