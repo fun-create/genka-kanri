@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import ProductWizard from '../components/ProductWizard'
 
 export default function Products() {
   const [rows, setRows] = useState([])
@@ -8,21 +9,22 @@ export default function Products() {
   const [search, setSearch] = useState('')
   const [positionFilter, setPositionFilter] = useState('')
   const [positions, setPositions] = useState([])
+  const [showWizard, setShowWizard] = useState(false)
 
-  useEffect(() => {
-    async function fetchData() {
-      const { data } = await supabase
-        .from('T_商品マスタ')
-        .select('*')
-        .order('商品コード')
-      const list = data || []
-      setRows(list)
-      const pos = [...new Set(list.map((r) => r['ポジション']).filter(Boolean))].sort()
-      setPositions(pos)
-      setLoading(false)
-    }
-    fetchData()
-  }, [])
+  async function fetchData() {
+    setLoading(true)
+    const { data } = await supabase
+      .from('T_商品マスタ')
+      .select('*')
+      .order('商品コード')
+    const list = data || []
+    setRows(list)
+    const pos = [...new Set(list.map((r) => r['ポジション']).filter(Boolean))].sort()
+    setPositions(pos)
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchData() }, [])
 
   const filtered = rows.filter((r) => {
     const matchSearch =
@@ -35,7 +37,15 @@ export default function Products() {
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-gray-800 mb-4">商品管理</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-bold text-gray-800">商品管理</h2>
+        <button
+          onClick={() => setShowWizard(true)}
+          className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700"
+        >
+          ＋ 新規登録
+        </button>
+      </div>
 
       <div className="flex gap-3 mb-4 flex-wrap">
         <input
@@ -65,6 +75,13 @@ export default function Products() {
         )}
         <span className="text-sm text-gray-500 self-center">{filtered.length} 件</span>
       </div>
+
+      {showWizard && (
+        <ProductWizard
+          onClose={() => setShowWizard(false)}
+          onSaved={() => { setShowWizard(false); fetchData() }}
+        />
+      )}
 
       {loading ? (
         <p className="text-gray-500">読み込み中...</p>

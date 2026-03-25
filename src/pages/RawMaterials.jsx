@@ -18,6 +18,7 @@ export default function RawMaterials() {
   const [editKey, setEditKey] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [search, setSearch] = useState('')
+  const [priceEdit, setPriceEdit] = useState({ code: null, value: '' })
 
   async function fetchData() {
     setLoading(true)
@@ -59,6 +60,15 @@ export default function RawMaterials() {
     fetchData()
   }
 
+  async function savePriceEdit(code) {
+    const val = parseFloat(priceEdit.value)
+    if (!isNaN(val) && val >= 0) {
+      await supabase.from('T_原材料マスタ').update({ 最新単価: val }).eq('原材料コード', code)
+      fetchData()
+    }
+    setPriceEdit({ code: null, value: '' })
+  }
+
   async function handleDelete(code) {
     if (!confirm(`原材料コード「${code}」を削除しますか？`)) return
     await supabase.from('T_原材料マスタ').delete().eq('原材料コード', code)
@@ -67,8 +77,8 @@ export default function RawMaterials() {
 
   const filtered = rows.filter(
     (r) =>
-      r['原材料コード'].includes(search) ||
-      r['資材名'].includes(search)
+      (r['原材料コード'] || '').includes(search) ||
+      (r['資材名'] || '').includes(search)
   )
 
   return (
@@ -108,7 +118,33 @@ export default function RawMaterials() {
                 >
                   <td className="border border-gray-200 px-3 py-2">{row['原材料コード']}</td>
                   <td className="border border-gray-200 px-3 py-2">{row['資材名']}</td>
-                  <td className="border border-gray-200 px-3 py-2 text-right">¥{Number(row['最新単価']).toLocaleString()}</td>
+                  <td
+                    className="border border-gray-200 px-3 py-2 text-right cursor-pointer group"
+                    title="クリックして単価を編集"
+                    onClick={() => !priceEdit.code && setPriceEdit({ code: row['原材料コード'], value: String(row['最新単価']) })}
+                  >
+                    {priceEdit.code === row['原材料コード'] ? (
+                      <input
+                        type="number"
+                        value={priceEdit.value}
+                        step="0.001"
+                        autoFocus
+                        className="border border-blue-400 rounded px-1 py-0.5 text-sm w-24 text-right"
+                        onChange={(e) => setPriceEdit((p) => ({ ...p, value: e.target.value }))}
+                        onBlur={() => savePriceEdit(row['原材料コード'])}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') savePriceEdit(row['原材料コード'])
+                          if (e.key === 'Escape') setPriceEdit({ code: null, value: '' })
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span className="group-hover:text-blue-600 group-hover:underline">
+                        ¥{Number(row['最新単価']).toLocaleString()}
+                        <span className="ml-1 text-xs text-gray-300 group-hover:text-blue-400">✏</span>
+                      </span>
+                    )}
+                  </td>
                   <td className="border border-gray-200 px-3 py-2">{row['メディア区分']}</td>
                   <td className="border border-gray-200 px-3 py-2 text-right">{row['発注点']}</td>
                   <td className={`border border-gray-200 px-3 py-2 text-right font-semibold ${row['現在庫'] <= row['発注点'] ? 'text-red-600' : ''}`}>

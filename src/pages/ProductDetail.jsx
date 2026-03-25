@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import BomFormModal from '../components/BomFormModal'
 
 const KUBUN_ORDER = ['メディア', '溶剤', '原材料', '工数', '梱包']
 const KUBUN_COLOR = {
@@ -17,38 +18,99 @@ export default function ProductDetail() {
   const [bomRows, setBomRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [showBomForm, setShowBomForm] = useState(false)
+  const [editingBomRow, setEditingBomRow] = useState(null)
+  const [recalculating, setRecalculating] = useState(false)
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true)
+  async function fetchData() {
+    setLoading(true)
 
-      const { data: prod, error: prodErr } = await supabase
-        .from('T_商品マスタ')
-        .select('*')
-        .eq('商品コード', decodeURIComponent(code))
-        .single()
+    const { data: prod, error: prodErr } = await supabase
+      .from('T_商品マスタ')
+      .select('*')
+      .eq('商品コード', decodeURIComponent(code))
+      .single()
 
-      if (prodErr || !prod) {
-        setError('商品が見つかりません')
-        setLoading(false)
-        return
-      }
-
-      setProduct(prod)
-
-      if (prod['原価コード']) {
-        const { data: bom } = await supabase
-          .from('T_原価計算明細')
-          .select('*')
-          .eq('受注ID', prod['原価コード'])
-          .order('明細区分')
-        setBomRows(bom || [])
-      }
-
+    if (prodErr || !prod) {
+      setError('商品が見つかりません')
       setLoading(false)
+      return
     }
-    fetchData()
-  }, [code])
+
+    setProduct(prod)
+
+    if (prod['原価コード']) {
+      const { data: bom } = await supabase
+        .from('T_原価計算明細')
+        .select('*')
+        .eq('受注ID', prod['原価コード'])
+        .order('明細区分')
+      setBomRows(bom || [])
+    }
+
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchData() }, [code])
+
+  async function handleDeleteBom(rowId) {
+    if (!confirm('この明細を削除しますか？')) return
+    await supabase.from('T_原価計算明細').delete().eq('id', rowId)
+    await refreshBomAndTotal()
+  }
+
+  async function refreshBomAndTotal() {
+    if (!product) return
+    const { data: bom } = await supabase
+      .from('T_原価計算明細')
+      .select('*')
+      .eq('受注ID', product['原価コード'])
+      .order('明細区分')
+    const rows = bom || []
+    setBomRows(rows)
+
+    const newTotal = rows.reduce((sum, r) => sum + Number(r['原価']), 0)
+    const 本体価格 = Number(product['本体価格']) || 0
+    const 原価率 = 本体価格 > 0 ? newTotal / 本体価格 : null
+    await supabase.from('T_商品マスタ').update({ 最新総原価: newTotal, 原価率 }).eq('商品コード', product['商品コード'])
+    setProduct((p) => ({ ...p, 最新総原価: newTotal, 原価率 }))
+  }
+
+  async function handleRecalculate() {
+    if (!product?.['原価コード'] || bomRows.length === 0) return
+    if (!confirm('全明細の単価を各マスタの最新単価に更新して再計算しますか？')) return
+    setRecalculating(true)
+
+    const [matRes, solRes, procRes] = await Promise.all([
+      supabase.from('T_原材料マスタ').select('原材料コード, 最新単価'),
+      supabase.from('T_溶剤マスタ').select('溶剤名, 最新単価'),
+      supabase.from('T_工程マスタ').select('id, 分単価'),
+    ])
+    const matMap = Object.fromEntries((matRes.data || []).map((m) => [m['原材料コード'], m['最新単価']]))
+    const solMap = Object.fromEntries((solRes.data || []).map((s) => [s['溶剤名'], s['最新単価']]))
+    const procMap = Object.fromEntries((procRes.data || []).map((p) => [p.id, p['分単価']]))
+
+    for (const row of bomRows) {
+      const kubun = row['明細区分']
+      let newPrice = null
+      if (kubun === '原材料' || kubun === 'メディア' || kubun === '梱包') {
+        newPrice = matMap[row['コード']] ?? null
+      } else if (kubun === '溶剤') {
+        newPrice = solMap[row['名称']] ?? null
+      } else if (kubun === '工数') {
+        newPrice = procMap[row['コード']] ?? null
+      }
+      if (newPrice !== null) {
+        const new原価 = newPrice * Number(row['数量'])
+        await supabase.from('T_原価計算明細')
+          .update({ 単価_snapshot: newPrice, 原価: new原価 })
+          .eq('id', row.id)
+      }
+    }
+
+    await refreshBomAndTotal()
+    setRecalculating(false)
+  }
 
   if (loading) return <p className="text-gray-500">読み込み中...</p>
   if (error) return (
@@ -72,6 +134,15 @@ export default function ProductDetail() {
   const sortedKubun = KUBUN_ORDER.filter((k) => kubunSummary[k]).concat(
     Object.keys(kubunSummary).filter((k) => !KUBUN_ORDER.includes(k))
   )
+
+  // 原価コードが未設定の場合は自動生成して保存するヘルパー
+  async function ensureGenkaCode() {
+    if (product['原価コード']) return product['原価コード']
+    const newCode = `${product['商品コード']}-${Date.now()}`
+    await supabase.from('T_商品マスタ').update({ 原価コード: newCode }).eq('商品コード', product['商品コード'])
+    setProduct((p) => ({ ...p, 原価コード: newCode }))
+    return newCode
+  }
 
   return (
     <div>
@@ -117,11 +188,36 @@ export default function ProductDetail() {
         </div>
       </div>
 
+      {/* BOM操作バー */}
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-base font-semibold text-gray-700">BOM明細</h3>
+        <div className="flex gap-2">
+          {bomRows.length > 0 && (
+            <button
+              onClick={handleRecalculate}
+              disabled={recalculating}
+              className="bg-amber-500 text-white px-3 py-1.5 rounded text-sm hover:bg-amber-600 disabled:opacity-50"
+            >
+              {recalculating ? '再計算中...' : '最新単価で再計算'}
+            </button>
+          )}
+          <button
+            onClick={async () => {
+              const code = await ensureGenkaCode()
+              if (code) setShowBomForm(true)
+            }}
+            className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700"
+          >
+            ＋ 明細追加
+          </button>
+        </div>
+      </div>
+
       {/* BOM明細 */}
-      {!product['原価コード'] ? (
-        <p className="text-gray-400 text-sm">原価コードが設定されていません</p>
-      ) : bomRows.length === 0 ? (
-        <p className="text-gray-400 text-sm">BOM明細データがありません（原価コード: {product['原価コード']}）</p>
+      {bomRows.length === 0 ? (
+        <p className="text-gray-400 text-sm py-4 text-center border border-dashed border-gray-300 rounded">
+          BOM明細データがありません。「明細追加」から追加してください。
+        </p>
       ) : (
         <>
           {/* 明細区分別サマリー */}
@@ -170,7 +266,7 @@ export default function ProductDetail() {
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="bg-gray-50 text-gray-500">
-                    {['コード', '名称', '単価', '数量', '原価'].map((h) => (
+                    {['コード', '名称', '単価', '数量', '原価', '操作'].map((h) => (
                       <th key={h} className="border border-gray-100 px-3 py-1.5 text-left text-xs">{h}</th>
                     ))}
                   </tr>
@@ -183,9 +279,25 @@ export default function ProductDetail() {
                       <td className="border border-gray-100 px-3 py-1.5 text-right">
                         ¥{Number(row['単価_snapshot']).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                       </td>
-                      <td className="border border-gray-100 px-3 py-1.5 text-right">{Number(row['数量']).toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
+                      <td className="border border-gray-100 px-3 py-1.5 text-right">
+                        {Number(row['数量']).toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                      </td>
                       <td className="border border-gray-100 px-3 py-1.5 text-right font-medium">
                         ¥{Number(row['原価']).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </td>
+                      <td className="border border-gray-100 px-3 py-1.5 whitespace-nowrap">
+                        <button
+                          onClick={() => { setEditingBomRow(row); setShowBomForm(true) }}
+                          className="text-blue-600 hover:underline text-xs mr-2"
+                        >
+                          編集
+                        </button>
+                        <button
+                          onClick={() => handleDeleteBom(row.id)}
+                          className="text-red-500 hover:underline text-xs"
+                        >
+                          削除
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -194,6 +306,19 @@ export default function ProductDetail() {
             </div>
           ))}
         </>
+      )}
+
+      {showBomForm && (
+        <BomFormModal
+          原価コード={product['原価コード']}
+          editRow={editingBomRow}
+          onClose={() => { setShowBomForm(false); setEditingBomRow(null) }}
+          onSave={async () => {
+            setShowBomForm(false)
+            setEditingBomRow(null)
+            await refreshBomAndTotal()
+          }}
+        />
       )}
     </div>
   )
