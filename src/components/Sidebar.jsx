@@ -12,8 +12,6 @@ const navItems = [
   { to: '/size-yield', label: 'サイズ歩留まり', icon: '📐' },
   { to: '/process', label: '工程マスタ', icon: '⚙️' },
   { to: '/solvent', label: '溶剤マスタ', icon: '🧪' },
-  { label: '─', divider: true },
-  { to: '/spreadsheet-sync', label: 'スプレッドシート連携', icon: '🔗' },
 ]
 
 export default function Sidebar({ isOpen, onClose }) {
