@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import BomViewModal from '../components/BomViewModal'
 
 export default function CostCalculation() {
-  const [tab, setTab] = useState('calc')
+  const [tab, setTab] = useState('master')
   const [sizes, setSizes] = useState([])
   const [materials, setMaterials] = useState([])
   const [solvents, setSolvents] = useState([])
@@ -100,7 +100,7 @@ export default function CostCalculation() {
       <h2 className="text-xl font-bold text-gray-800 mb-4">原価計算</h2>
 
       <div className="flex gap-2 mb-5 border-b border-gray-200">
-        {[{ key: 'calc', label: '原価計算' }, { key: 'master', label: '商品マスタ' }].map((t) => (
+        {[{ key: 'master', label: '商品マスタ' }, { key: 'calc', label: '原価計算' }].map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}

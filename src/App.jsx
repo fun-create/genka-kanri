@@ -12,6 +12,7 @@ import InventoryRegister from './pages/InventoryRegister'
 import MonthlyReport from './pages/MonthlyReport'
 import Products from './pages/Products'
 import ProductDetail from './pages/ProductDetail'
+import SpreadsheetSync from './pages/SpreadsheetSync'
 
 function App() {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -46,6 +47,7 @@ function App() {
             <Route path="/inventory" element={<Inventory />} />
             <Route path="/inventory-register" element={<InventoryRegister />} />
             <Route path="/monthly-report" element={<MonthlyReport />} />
+            <Route path="/spreadsheet-sync" element={<SpreadsheetSync />} />
           </Routes>
         </main>
       </div>
