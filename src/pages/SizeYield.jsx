@@ -1,5 +1,15 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { exportToExcel, getDateStr } from '../lib/exportExcel'
+
+const EXPORT_COLUMNS = [
+  { header: 'メディアコード',   key: 'メディアコード',   type: 'string' },
+  { header: '製品名',           key: '製品名',           type: 'string' },
+  { header: '面積m2',           key: '面積m2',           type: 'number' },
+  { header: 'メディア取得係数', key: 'メディア取得係数', type: 'number' },
+  { header: '溶剤取得係数',     key: '溶剤取得係数',     type: 'number' },
+  { header: 'メディア区分',     key: 'メディア区分',     type: 'string' },
+]
 
 const emptyForm = { 製品名: '', 面積m2: '', メディア取得係数: '', 溶剤取得係数: '' }
 
@@ -48,6 +58,10 @@ export default function SizeYield() {
     fetchData()
   }
 
+  function handleExport() {
+    exportToExcel({ filename: `サイズ歩留まりマスタ_${getDateStr()}.xlsx`, columns: EXPORT_COLUMNS, data: rows })
+  }
+
   const fields = [
     { key: '製品名', type: 'text' },
     { key: '面積m2', type: 'number' },
@@ -59,9 +73,14 @@ export default function SizeYield() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold text-gray-800">サイズ歩留まりマスタ</h2>
-        <button onClick={openAdd} className="bg-blue-600 text-white px-4 py-2.5 rounded text-sm hover:bg-blue-700 min-h-[44px]">
-          ＋ 追加
-        </button>
+        <div className="flex gap-2">
+          <button onClick={handleExport} className="bg-green-600 text-white px-4 py-2.5 rounded text-sm hover:bg-green-700 min-h-[44px]">
+            Excelエクスポート
+          </button>
+          <button onClick={openAdd} className="bg-blue-600 text-white px-4 py-2.5 rounded text-sm hover:bg-blue-700 min-h-[44px]">
+            ＋ 追加
+          </button>
+        </div>
       </div>
 
       {loading ? (

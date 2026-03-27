@@ -1,5 +1,16 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { exportToExcel, getDateStr } from '../lib/exportExcel'
+
+const EXPORT_COLUMNS = [
+  { header: '原材料コード', key: '原材料コード', type: 'string' },
+  { header: '資材名',       key: '資材名',       type: 'string' },
+  { header: '最新単価',     key: '最新単価',     type: 'number' },
+  { header: 'メディア区分', key: 'メディア区分', type: 'string' },
+  { header: '仕入先URL',    key: '仕入先URL',    type: 'string' },
+  { header: '発注点',       key: '発注点',       type: 'number' },
+  { header: '現在庫',       key: '現在庫',       type: 'number' },
+]
 
 const emptyForm = {
   原材料コード: '',
@@ -61,6 +72,10 @@ export default function RawMaterials() {
     fetchData()
   }
 
+  function handleExport() {
+    exportToExcel({ filename: `原材料マスタ_${getDateStr()}.xlsx`, columns: EXPORT_COLUMNS, data: filtered })
+  }
+
   async function savePriceEdit(code) {
     const val = parseFloat(priceEdit.value)
     if (!isNaN(val) && val >= 0) {
@@ -80,9 +95,14 @@ export default function RawMaterials() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold text-gray-800">原材料マスタ管理</h2>
-        <button onClick={openAdd} className="bg-blue-600 text-white px-4 py-2.5 rounded text-sm hover:bg-blue-700 min-h-[44px]">
-          ＋ 追加
-        </button>
+        <div className="flex gap-2">
+          <button onClick={handleExport} className="bg-green-600 text-white px-4 py-2.5 rounded text-sm hover:bg-green-700 min-h-[44px]">
+            Excelエクスポート
+          </button>
+          <button onClick={openAdd} className="bg-blue-600 text-white px-4 py-2.5 rounded text-sm hover:bg-blue-700 min-h-[44px]">
+            ＋ 追加
+          </button>
+        </div>
       </div>
 
       <input

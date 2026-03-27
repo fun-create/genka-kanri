@@ -1,5 +1,15 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { exportToExcel, getDateStr } from '../lib/exportExcel'
+
+const EXPORT_COLUMNS = [
+  { header: '工程コード',   key: '工程コード',   type: 'string' },
+  { header: '商品名',       key: '商品名',       type: 'string' },
+  { header: 'ポジション名', key: 'ポジション名', type: 'string' },
+  { header: '標準工数_分',  key: '標準工数_分',  type: 'number' },
+  { header: '人件費_1個',   key: '人件費_1個',   type: 'number' },
+  { header: '分単価',       key: '分単価',       type: 'number' },
+]
 
 const emptyForm = { ポジション名: '', 分単価: '' }
 
@@ -43,11 +53,18 @@ export default function Process() {
     fetchData()
   }
 
+  function handleExport() {
+    exportToExcel({ filename: `工程マスタ_${getDateStr()}.xlsx`, columns: EXPORT_COLUMNS, data: rows })
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold text-gray-800">工程マスタ管理</h2>
-        <button onClick={openAdd} className="bg-blue-600 text-white px-4 py-2.5 rounded text-sm hover:bg-blue-700 min-h-[44px]">＋ 追加</button>
+        <div className="flex gap-2">
+          <button onClick={handleExport} className="bg-green-600 text-white px-4 py-2.5 rounded text-sm hover:bg-green-700 min-h-[44px]">Excelエクスポート</button>
+          <button onClick={openAdd} className="bg-blue-600 text-white px-4 py-2.5 rounded text-sm hover:bg-blue-700 min-h-[44px]">＋ 追加</button>
+        </div>
       </div>
 
       {loading ? <p className="text-gray-500">読み込み中...</p> : (

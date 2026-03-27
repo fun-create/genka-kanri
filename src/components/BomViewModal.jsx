@@ -1,5 +1,16 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { exportToExcel, getDateStr } from '../lib/exportExcel'
+
+const BOM_EXPORT_COLUMNS = [
+  { header: '受注ID',         key: '受注ID',         type: 'string' },
+  { header: '明細区分',       key: '明細区分',       type: 'string' },
+  { header: 'コード',         key: 'コード',         type: 'string' },
+  { header: '名称',           key: '名称',           type: 'string' },
+  { header: '単価_snapshot',  key: '単価_snapshot',  type: 'number' },
+  { header: '数量',           key: '数量',           type: 'number' },
+  { header: '原価',           key: '原価',           type: 'number' },
+]
 
 const KUBUN_OPTIONS = ['原材料', 'メディア', '溶剤', '工数', '梱包']
 const KUBUN_COLOR = {
@@ -415,9 +426,21 @@ export default function BomViewModal({ product, masters, onClose, onTotalUpdated
             {rows.length} 件　合計:
             <span className="font-bold text-gray-800 ml-1">¥{totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
           </div>
-          <button onClick={onClose} className="px-4 py-2.5 text-sm border border-gray-300 rounded hover:bg-gray-50 min-h-[44px]">
-            閉じる
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => exportToExcel({
+                filename: `BOM_${product['商品コード']}_${getDateStr()}.xlsx`,
+                columns: BOM_EXPORT_COLUMNS,
+                data: rows,
+              })}
+              className="px-4 py-2.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 min-h-[44px]"
+            >
+              Excelエクスポート
+            </button>
+            <button onClick={onClose} className="px-4 py-2.5 text-sm border border-gray-300 rounded hover:bg-gray-50 min-h-[44px]">
+              閉じる
+            </button>
+          </div>
         </div>
       </div>
     </div>

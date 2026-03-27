@@ -2,6 +2,17 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import ProductWizard from '../components/ProductWizard'
+import { exportToExcel, getDateStr } from '../lib/exportExcel'
+
+const EXPORT_COLUMNS = [
+  { header: '商品コード',   key: '商品コード',   type: 'string' },
+  { header: '商品名',       key: '商品名',       type: 'string' },
+  { header: '最新総原価',   key: '最新総原価',   type: 'number' },
+  { header: 'ポジション',   key: 'ポジション',   type: 'string' },
+  { header: '原価コード',   key: '原価コード',   type: 'string' },
+  { header: '本体価格',     key: '本体価格',     type: 'number' },
+  { header: '原価率',       key: '原価率',       type: 'number' },
+]
 
 export default function Products() {
   const [rows, setRows] = useState([])
@@ -36,12 +47,20 @@ export default function Products() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold text-gray-800">商品管理</h2>
-        <button
-          onClick={() => setShowWizard(true)}
-          className="bg-blue-600 text-white px-4 py-2.5 rounded text-sm hover:bg-blue-700 min-h-[44px]"
-        >
-          ＋ 新規登録
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => exportToExcel({ filename: `商品マスタ_${getDateStr()}.xlsx`, columns: EXPORT_COLUMNS, data: filtered })}
+            className="bg-green-600 text-white px-4 py-2.5 rounded text-sm hover:bg-green-700 min-h-[44px]"
+          >
+            Excelエクスポート
+          </button>
+          <button
+            onClick={() => setShowWizard(true)}
+            className="bg-blue-600 text-white px-4 py-2.5 rounded text-sm hover:bg-blue-700 min-h-[44px]"
+          >
+            ＋ 新規登録
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-2 mb-4">
