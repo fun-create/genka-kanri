@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import * as XLSX from 'xlsx'
 
 const emptyForm = {
   原材料コード: '',
@@ -61,6 +62,22 @@ export default function RawMaterials() {
     fetchData()
   }
 
+  function exportToExcel() {
+    const data = filtered.map((r) => ({
+      原材料コード: r['原材料コード'],
+      資材名: r['資材名'],
+      最新単価: r['最新単価'],
+      メディア区分: r['メディア区分'],
+      仕入先URL: r['仕入先URL'],
+      発注点: r['発注点'],
+      現在庫: r['現在庫'],
+    }))
+    const ws = XLSX.utils.json_to_sheet(data)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '原材料マスタ')
+    XLSX.writeFile(wb, '原材料マスタ.xlsx')
+  }
+
   async function savePriceEdit(code) {
     const val = parseFloat(priceEdit.value)
     if (!isNaN(val) && val >= 0) {
@@ -80,9 +97,14 @@ export default function RawMaterials() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold text-gray-800">原材料マスタ管理</h2>
-        <button onClick={openAdd} className="bg-blue-600 text-white px-4 py-2.5 rounded text-sm hover:bg-blue-700 min-h-[44px]">
-          ＋ 追加
-        </button>
+        <div className="flex gap-2">
+          <button onClick={exportToExcel} className="bg-green-600 text-white px-4 py-2.5 rounded text-sm hover:bg-green-700 min-h-[44px]">
+            Excel出力
+          </button>
+          <button onClick={openAdd} className="bg-blue-600 text-white px-4 py-2.5 rounded text-sm hover:bg-blue-700 min-h-[44px]">
+            ＋ 追加
+          </button>
+        </div>
       </div>
 
       <input
