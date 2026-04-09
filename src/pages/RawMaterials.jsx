@@ -156,7 +156,7 @@ export default function RawMaterials() {
                         />
                       ) : (
                         <span className="group-hover:text-blue-600 group-hover:underline">
-                          ¥{Number(row['最新単価']).toLocaleString()}
+                          ¥{Math.ceil(Number(row['最新単価'])).toLocaleString()}
                           <span className="ml-1 text-xs text-gray-300 group-hover:text-blue-400">✏</span>
                         </span>
                       )}
@@ -200,7 +200,7 @@ export default function RawMaterials() {
                   <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm mb-3">
                     <div>
                       <dt className="text-xs text-gray-500">最新単価</dt>
-                      <dd className="font-medium">¥{Number(row['最新単価']).toLocaleString()}</dd>
+                      <dd className="font-medium">¥{Math.ceil(Number(row['最新単価'])).toLocaleString()}</dd>
                     </div>
                     <div>
                       <dt className="text-xs text-gray-500">メディア区分</dt>

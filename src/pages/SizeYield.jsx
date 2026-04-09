@@ -73,7 +73,7 @@ export default function SizeYield() {
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="bg-gray-100 text-gray-600">
-                  {['製品名', '面積(m²)', 'メディア取得係数', '溶剤取得係数', '操作'].map((h) => (
+                  {['製品名', '面積(m²)', 'メディア単価', '溶剤単価', 'メディア取得係数', '溶剤取得係数', '操作'].map((h) => (
                     <th key={h} className="border border-gray-200 px-3 py-2 text-left">{h}</th>
                   ))}
                 </tr>
@@ -83,6 +83,8 @@ export default function SizeYield() {
                   <tr key={row.id} className="bg-white hover:bg-gray-50">
                     <td className="border border-gray-200 px-3 py-2">{row['製品名']}</td>
                     <td className="border border-gray-200 px-3 py-2 text-right">{row['面積m2']}</td>
+                    <td className="border border-gray-200 px-3 py-2 text-right">¥{Math.ceil(Number(row['メディア単価'] || 0)).toLocaleString()}</td>
+                    <td className="border border-gray-200 px-3 py-2 text-right">¥{Math.ceil(Number(row['溶剤単価'] || 0)).toLocaleString()}</td>
                     <td className="border border-gray-200 px-3 py-2 text-right">{row['メディア取得係数']}</td>
                     <td className="border border-gray-200 px-3 py-2 text-right">{row['溶剤取得係数']}</td>
                     <td className="border border-gray-200 px-3 py-2">
@@ -92,7 +94,7 @@ export default function SizeYield() {
                   </tr>
                 ))}
                 {rows.length === 0 && (
-                  <tr><td colSpan={5} className="text-center py-8 text-gray-400">データがありません</td></tr>
+                  <tr><td colSpan={7} className="text-center py-8 text-gray-400">データがありません</td></tr>
                 )}
               </tbody>
             </table>
@@ -108,6 +110,14 @@ export default function SizeYield() {
                   <div>
                     <dt className="text-xs text-gray-500">面積(m²)</dt>
                     <dd className="font-medium">{row['面積m2']}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-gray-500">メディア単価</dt>
+                    <dd className="font-medium">¥{Math.ceil(Number(row['メディア単価'] || 0)).toLocaleString()}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-gray-500">溶剤単価</dt>
+                    <dd className="font-medium">¥{Math.ceil(Number(row['溶剤単価'] || 0)).toLocaleString()}</dd>
                   </div>
                   <div>
                     <dt className="text-xs text-gray-500">メディア取得係数</dt>
