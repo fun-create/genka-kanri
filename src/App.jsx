@@ -13,6 +13,7 @@ import MonthlyReport from './pages/MonthlyReport'
 import Products from './pages/Products'
 import ProductDetail from './pages/ProductDetail'
 import CostValidation from './pages/CostValidation'
+import PriceSimulation from './pages/PriceSimulation'
 
 function App() {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -48,6 +49,7 @@ function App() {
             <Route path="/inventory-register" element={<InventoryRegister />} />
             <Route path="/monthly-report" element={<MonthlyReport />} />
             <Route path="/cost-validation" element={<CostValidation />} />
+            <Route path="/price-simulation" element={<PriceSimulation />} />
           </Routes>
         </main>
       </div>

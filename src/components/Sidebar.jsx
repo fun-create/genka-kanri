@@ -8,6 +8,7 @@ const navItems = [
   { to: '/inventory-register', label: '在庫登録', icon: '✏️' },
   { to: '/monthly-report', label: '月次レポート', icon: '📊' },
   { to: '/cost-validation', label: '原価検証', icon: '✅' },
+  { to: '/price-simulation', label: '売価シミュレーション', icon: '💹' },
   { label: '─', divider: true },
   { to: '/raw-materials', label: '原材料マスタ', icon: '📦' },
   { to: '/size-yield', label: 'サイズ歩留まり', icon: '📐' },
