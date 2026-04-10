@@ -14,6 +14,7 @@ import Products from './pages/Products'
 import ProductDetail from './pages/ProductDetail'
 import CostValidation from './pages/CostValidation'
 import PriceSimulation from './pages/PriceSimulation'
+import PriceHistory from './pages/PriceHistory'
 
 function App() {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -50,6 +51,7 @@ function App() {
             <Route path="/monthly-report" element={<MonthlyReport />} />
             <Route path="/cost-validation" element={<CostValidation />} />
             <Route path="/price-simulation" element={<PriceSimulation />} />
+            <Route path="/price-history" element={<PriceHistory />} />
           </Routes>
         </main>
       </div>

@@ -9,6 +9,7 @@ const navItems = [
   { to: '/monthly-report', label: '月次レポート', icon: '📊' },
   { to: '/cost-validation', label: '原価検証', icon: '✅' },
   { to: '/price-simulation', label: '売価シミュレーション', icon: '💹' },
+  { to: '/price-history', label: '単価更新履歴', icon: '🕐' },
   { label: '─', divider: true },
   { to: '/raw-materials', label: '原材料マスタ', icon: '📦' },
   { to: '/size-yield', label: 'サイズ歩留まり', icon: '📐' },

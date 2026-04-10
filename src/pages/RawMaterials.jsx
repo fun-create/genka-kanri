@@ -37,6 +37,24 @@ export default function RawMaterials() {
     setShowForm(true)
   }
 
+  async function recordPriceHistory({ code, 資材名, oldPrice, newPrice, method }) {
+    const { data: bomData } = await supabase
+      .from('T_原価計算明細')
+      .select('受注ID')
+      .eq('コード', code)
+    const bomCount     = bomData ? bomData.length : 0
+    const productCount = bomData ? new Set(bomData.map((r) => r['受注ID'])).size : 0
+    await supabase.from('T_単価更新履歴').insert({
+      原材料コード: code,
+      資材名,
+      更新前単価: oldPrice,
+      更新後単価: newPrice,
+      計算方式: method,
+      更新件数_BOM: bomCount,
+      更新件数_商品: productCount,
+    })
+  }
+
   async function handleSave() {
     const payload = {
       原材料コード: form['原材料コード'],
@@ -48,7 +66,13 @@ export default function RawMaterials() {
       現在庫: Number(form['現在庫']),
     }
     if (editKey) {
+      const currentRow = rows.find((r) => r['原材料コード'] === editKey)
+      const oldPrice   = currentRow ? Number(currentRow['最新単価']) : null
+      const newPrice   = Number(form['最新単価'])
       await supabase.from('T_原材料マスタ').update(payload).eq('原材料コード', editKey)
+      if (oldPrice !== newPrice) {
+        await recordPriceHistory({ code: editKey, 資材名: form['資材名'], oldPrice, newPrice, method: 'フォーム編集' })
+      }
     } else {
       await supabase.from('T_原材料マスタ').insert(payload)
     }
@@ -81,7 +105,12 @@ export default function RawMaterials() {
   async function savePriceEdit(code) {
     const val = parseFloat(priceEdit.value)
     if (!isNaN(val) && val >= 0) {
+      const currentRow = rows.find((r) => r['原材料コード'] === code)
+      const oldPrice   = currentRow ? Number(currentRow['最新単価']) : null
       await supabase.from('T_原材料マスタ').update({ 最新単価: val }).eq('原材料コード', code)
+      if (oldPrice !== val) {
+        await recordPriceHistory({ code, 資材名: currentRow?.['資材名'] || '', oldPrice, newPrice: val, method: 'インライン編集' })
+      }
       fetchData()
     }
     setPriceEdit({ code: null, value: '' })
