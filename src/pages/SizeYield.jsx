@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { calcAndApplyMPrice } from '../lib/calcMPrice'
 
 const emptyForm = { 製品名: '', 面積m2: '', メディア取得係数: '', 溶剤取得係数: '' }
 
@@ -9,6 +10,13 @@ export default function SizeYield() {
   const [form, setForm] = useState(emptyForm)
   const [editId, setEditId] = useState(null)
   const [showForm, setShowForm] = useState(false)
+  const [toast, setToast] = useState(null)
+  const [recalcLoading, setRecalcLoading] = useState(false)
+
+  function showToast(msg) {
+    setToast(msg)
+    setTimeout(() => setToast(null), 4500)
+  }
 
   async function fetchData() {
     setLoading(true)
@@ -28,10 +36,10 @@ export default function SizeYield() {
 
   async function handleSave() {
     const payload = {
-      製品名: form['製品名'],
-      面積m2: Number(form['面積m2']),
+      製品名:         form['製品名'],
+      面積m2:         Number(form['面積m2']),
       メディア取得係数: Number(form['メディア取得係数']),
-      溶剤取得係数: Number(form['溶剤取得係数']),
+      溶剤取得係数:   Number(form['溶剤取得係数']),
     }
     if (editId) {
       await supabase.from('T_サイズ歩留まりマスタ').update(payload).eq('id', editId)
@@ -48,6 +56,35 @@ export default function SizeYield() {
     fetchData()
   }
 
+  // 原材料コード3000以降の全資材を順番に一括再計算
+  async function recalcAll() {
+    setRecalcLoading(true)
+    try {
+      const { data: materials } = await supabase.from('T_原材料マスタ').select('*')
+      const targets = (materials || []).filter(
+        (m) => Number(m['原材料コード']) >= 3000 && m['仕入れ単位']
+      )
+
+      if (targets.length === 0) {
+        showToast('対象資材がありません（コード3000以降で仕入れ単位が設定された資材が必要です）')
+        return
+      }
+
+      let totalProducts = 0
+      for (const mat of targets) {
+        const { affectedProductCount } = await calcAndApplyMPrice(mat)
+        totalProducts += affectedProductCount
+      }
+
+      showToast(`全件再計算完了：${targets.length}件の資材 / ${totalProducts}商品の原価を更新しました`)
+      fetchData()
+    } catch (e) {
+      showToast(`エラー: ${e.message}`)
+    } finally {
+      setRecalcLoading(false)
+    }
+  }
+
   const fields = [
     { key: '製品名', type: 'text' },
     { key: '面積m2', type: 'number' },
@@ -59,9 +96,18 @@ export default function SizeYield() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold text-gray-800">サイズ歩留まりマスタ</h2>
-        <button onClick={openAdd} className="bg-blue-600 text-white px-4 py-2.5 rounded text-sm hover:bg-blue-700 min-h-[44px]">
-          ＋ 追加
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={recalcAll}
+            disabled={recalcLoading}
+            className="bg-indigo-600 text-white px-4 py-2.5 rounded text-sm hover:bg-indigo-700 disabled:opacity-50 min-h-[44px]"
+          >
+            {recalcLoading ? '再計算中...' : '全件再計算'}
+          </button>
+          <button onClick={openAdd} className="bg-blue-600 text-white px-4 py-2.5 rounded text-sm hover:bg-blue-700 min-h-[44px]">
+            ＋ 追加
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -162,6 +208,13 @@ export default function SizeYield() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* トースト通知 */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-5 py-3 rounded-lg shadow-xl z-[60] text-sm max-w-sm text-center leading-relaxed">
+          {toast}
         </div>
       )}
     </div>

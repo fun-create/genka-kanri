@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { calcAndApplyMPrice } from '../lib/calcMPrice'
 import * as XLSX from 'xlsx'
 
 const emptyForm = {
@@ -10,6 +11,14 @@ const emptyForm = {
   仕入先URL: '',
   発注点: '',
   現在庫: '',
+  仕入れ単位: '',
+  ロール単価: '',
+  ロール面積: '',
+  歩留まり率: '',
+}
+
+function isMediaMaterial(code) {
+  return Number(code) >= 3000
 }
 
 export default function RawMaterials() {
@@ -20,6 +29,13 @@ export default function RawMaterials() {
   const [showForm, setShowForm] = useState(false)
   const [search, setSearch] = useState('')
   const [priceEdit, setPriceEdit] = useState({ code: null, value: '' })
+  const [toast, setToast] = useState(null)
+  const [applying, setApplying] = useState(false)
+
+  function showToast(msg) {
+    setToast(msg)
+    setTimeout(() => setToast(null), 4500)
+  }
 
   async function fetchData() {
     setLoading(true)
@@ -32,7 +48,16 @@ export default function RawMaterials() {
 
   function openAdd() { setForm(emptyForm); setEditKey(null); setShowForm(true) }
   function openEdit(row) {
-    setForm({ ...row, 最新単価: String(row['最新単価']), 発注点: String(row['発注点']), 現在庫: String(row['現在庫']) })
+    setForm({
+      ...row,
+      最新単価:  String(row['最新単価']),
+      発注点:    String(row['発注点']),
+      現在庫:    String(row['現在庫']),
+      仕入れ単位: row['仕入れ単位'] || '',
+      ロール単価: String(row['ロール単価'] ?? ''),
+      ロール面積: String(row['ロール面積'] ?? ''),
+      歩留まり率: String(row['歩留まり率'] ?? ''),
+    })
     setEditKey(row['原材料コード'])
     setShowForm(true)
   }
@@ -45,26 +70,34 @@ export default function RawMaterials() {
     const bomCount     = bomData ? bomData.length : 0
     const productCount = bomData ? new Set(bomData.map((r) => r['受注ID'])).size : 0
     await supabase.from('T_単価更新履歴').insert({
-      原材料コード: code,
+      原材料コード:  code,
       資材名,
-      更新前単価: oldPrice,
-      更新後単価: newPrice,
-      計算方式: method,
-      更新件数_BOM: bomCount,
+      更新前単価:    oldPrice,
+      更新後単価:    newPrice,
+      計算方式:      method,
+      更新件数_BOM:  bomCount,
       更新件数_商品: productCount,
     })
   }
 
-  async function handleSave() {
-    const payload = {
-      原材料コード: form['原材料コード'],
-      資材名: form['資材名'],
-      最新単価: Number(form['最新単価']),
-      メディア区分: form['メディア区分'],
-      仕入先URL: form['仕入先URL'],
-      発注点: Number(form['発注点']),
-      現在庫: Number(form['現在庫']),
+  function buildPayload(f) {
+    return {
+      原材料コード: f['原材料コード'],
+      資材名:       f['資材名'],
+      最新単価:     Number(f['最新単価']),
+      メディア区分: f['メディア区分'],
+      仕入先URL:    f['仕入先URL'],
+      発注点:       Number(f['発注点']),
+      現在庫:       Number(f['現在庫']),
+      仕入れ単位:   f['仕入れ単位'] || null,
+      ロール単価:   f['ロール単価'] !== '' ? Number(f['ロール単価']) : 0,
+      ロール面積:   f['ロール面積'] !== '' ? Number(f['ロール面積']) : 0,
+      歩留まり率:   f['歩留まり率'] !== '' ? Number(f['歩留まり率']) : 1,
     }
+  }
+
+  async function handleSave() {
+    const payload = buildPayload(form)
     if (editKey) {
       const currentRow = rows.find((r) => r['原材料コード'] === editKey)
       const oldPrice   = currentRow ? Number(currentRow['最新単価']) : null
@@ -80,6 +113,36 @@ export default function RawMaterials() {
     fetchData()
   }
 
+  async function handleCalcAndApply() {
+    if (!editKey) return
+    setApplying(true)
+    try {
+      // 現在フォームの値でDBを保存してからm単価計算を実行
+      const payload = buildPayload(form)
+      await supabase.from('T_原材料マスタ').update(payload).eq('原材料コード', editKey)
+
+      const materialRow = {
+        原材料コード: editKey,
+        資材名:       form['資材名'],
+        最新単価:     Number(form['最新単価']),
+        メディア区分: form['メディア区分'],
+        仕入れ単位:   form['仕入れ単位'],
+        ロール単価:   Number(form['ロール単価'] || 0),
+        ロール面積:   Number(form['ロール面積'] || 0),
+        歩留まり率:   Number(form['歩留まり率'] || 1),
+      }
+
+      const { affectedProductCount } = await calcAndApplyMPrice(materialRow)
+      setShowForm(false)
+      showToast(`${affectedProductCount}商品の最新総原価を更新しました（履歴保存済み）`)
+      fetchData()
+    } catch (e) {
+      showToast(`エラー: ${e.message}`)
+    } finally {
+      setApplying(false)
+    }
+  }
+
   async function handleDelete(code) {
     if (!confirm(`原材料コード「${code}」を削除しますか？`)) return
     await supabase.from('T_原材料マスタ').delete().eq('原材料コード', code)
@@ -89,12 +152,12 @@ export default function RawMaterials() {
   function exportToExcel() {
     const data = filtered.map((r) => ({
       原材料コード: r['原材料コード'],
-      資材名: r['資材名'],
-      最新単価: r['最新単価'],
+      資材名:       r['資材名'],
+      最新単価:     r['最新単価'],
       メディア区分: r['メディア区分'],
-      仕入先URL: r['仕入先URL'],
-      発注点: r['発注点'],
-      現在庫: r['現在庫'],
+      仕入先URL:    r['仕入先URL'],
+      発注点:       r['発注点'],
+      現在庫:       r['現在庫'],
     }))
     const ws = XLSX.utils.json_to_sheet(data)
     const wb = XLSX.utils.book_new()
@@ -121,6 +184,9 @@ export default function RawMaterials() {
       (r['原材料コード'] || '').includes(search) ||
       (r['資材名'] || '').includes(search)
   )
+
+  const showRollFields  = isMediaMaterial(form['原材料コード']) && form['仕入れ単位'] === 'ロール'
+  const showSheetFields = isMediaMaterial(form['原材料コード']) && form['仕入れ単位'] === '枚'
 
   return (
     <div>
@@ -255,12 +321,14 @@ export default function RawMaterials() {
         </>
       )}
 
+      {/* ── 編集/追加モーダル ── */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center">
           <div className="bg-white w-full rounded-t-2xl md:rounded-lg md:max-w-lg shadow-xl overflow-y-auto max-h-[90vh]">
             <div className="p-5">
               <h3 className="font-bold text-gray-800 mb-4">{editKey ? '原材料編集' : '原材料追加'}</h3>
               <div className="space-y-3">
+                {/* 基本フィールド */}
                 {[
                   { key: '原材料コード', type: 'text', disabled: !!editKey },
                   { key: '資材名', type: 'text' },
@@ -289,13 +357,108 @@ export default function RawMaterials() {
                     className="border border-gray-300 rounded px-3 py-2.5 text-base w-full"
                   />
                 </div>
+
+                {/* コード3000以降の資材：歩留まり計算フィールド */}
+                {isMediaMaterial(form['原材料コード']) && (
+                  <div className="border border-indigo-200 bg-indigo-50 rounded-lg p-4 space-y-3">
+                    <p className="text-xs font-semibold text-indigo-700">サイズ歩留まり計算（コード3000以降）</p>
+
+                    {/* 仕入れ単位 */}
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">仕入れ単位</label>
+                      <select
+                        value={form['仕入れ単位']}
+                        onChange={(e) => setForm({ ...form, '仕入れ単位': e.target.value })}
+                        className="border border-gray-300 rounded px-3 py-2.5 text-base w-full bg-white"
+                      >
+                        <option value="">-- 選択 --</option>
+                        <option value="ロール">ロール</option>
+                        <option value="枚">枚</option>
+                      </select>
+                    </div>
+
+                    {/* ロール選択時 */}
+                    {showRollFields && (
+                      <>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">ロール単価（円）</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={form['ロール単価']}
+                            onChange={(e) => setForm({ ...form, 'ロール単価': e.target.value })}
+                            className="border border-gray-300 rounded px-3 py-2.5 text-base w-full"
+                            placeholder="例: 5000"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">ロール面積（m²）</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={form['ロール面積']}
+                            onChange={(e) => setForm({ ...form, 'ロール面積': e.target.value })}
+                            className="border border-gray-300 rounded px-3 py-2.5 text-base w-full"
+                            placeholder="例: 50"
+                          />
+                        </div>
+                        {form['ロール単価'] && form['ロール面積'] && Number(form['ロール面積']) > 0 && (
+                          <p className="text-xs text-indigo-700 bg-indigo-100 rounded px-3 py-1.5">
+                            計算結果のm単価：¥{(Number(form['ロール単価']) / Number(form['ロール面積'])).toLocaleString(undefined, { maximumFractionDigits: 4 })} / m²
+                          </p>
+                        )}
+                      </>
+                    )}
+
+                    {/* 枚選択時 */}
+                    {showSheetFields && (
+                      <>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">歩留まり率</label>
+                          <input
+                            type="number"
+                            step="0.001"
+                            value={form['歩留まり率']}
+                            onChange={(e) => setForm({ ...form, '歩留まり率': e.target.value })}
+                            className="border border-gray-300 rounded px-3 py-2.5 text-base w-full"
+                            placeholder="例: 0.8"
+                          />
+                        </div>
+                        {form['最新単価'] && form['歩留まり率'] && (
+                          <p className="text-xs text-indigo-700 bg-indigo-100 rounded px-3 py-1.5">
+                            計算結果のm単価：¥{(Number(form['最新単価']) * Number(form['歩留まり率'])).toLocaleString(undefined, { maximumFractionDigits: 4 })} / m²
+                          </p>
+                        )}
+                      </>
+                    )}
+
+                    {/* m単価計算・反映ボタン（編集時のみ） */}
+                    {editKey && form['仕入れ単位'] && (
+                      <button
+                        onClick={handleCalcAndApply}
+                        disabled={applying}
+                        className="w-full py-2.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 min-h-[44px] font-medium"
+                      >
+                        {applying ? '計算・反映中...' : 'm単価を計算してBOMに反映'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
+
               <div className="flex gap-2 mt-5">
                 <button onClick={() => setShowForm(false)} className="flex-1 py-3 text-sm border border-gray-300 rounded hover:bg-gray-50 min-h-[44px]">キャンセル</button>
                 <button onClick={handleSave} className="flex-1 py-3 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 min-h-[44px]">保存</button>
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── トースト通知 ── */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-5 py-3 rounded-lg shadow-xl z-[60] text-sm max-w-sm text-center leading-relaxed">
+          {toast}
         </div>
       )}
     </div>
